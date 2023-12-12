@@ -1,0 +1,162 @@
+select * from ['All Active Voters$']
+----returns 810,060 rows
+select * from ['All Active Voters$']
+where [Voter Status]<>'ACT'
+-----returns 0 rows...means all voters in the All Active Voters have status 'ACT' 
+
+------How many voters have their Residence_Address= Formatted_Address
+select * from ['All Active Voters$']
+where Residence_Address = Formatted_Address
+-----returns 762,670 rows
+----Adding Mailing_Adress_1, Mailing_Address_2 with above queries to check if they have any
+select * from ['All Active Voters$']
+where Residence_Address = Formatted_Address 
+and  Residence_Address = Mailing_Address_1 
+and  Residence_Address = Mailing_Address_2
+-----returns 0 records...it indicates that they have not moved out from FL
+-------  when addresses are not same
+select * from ['All Active Voters$']
+where Residence_Address <> Formatted_Address
+-----returns 47,390 rows
+------trying to find the patteren of Mailing_Addresses with above query
+select * from ['All Active Voters$']
+where Residence_Address <> Formatted_Address
+and Residence_Address = Mailing_Address_1 
+-----No Records---Trying with Formatted_Adresses
+select * from ['All Active Voters$']
+where Residence_Address <> Formatted_Address
+and Formatted_Address = Mailing_Address_1 
+-----retrived 44,438 rows
+select * from ['All Active Voters$']
+where Residence_Address <> Formatted_Address
+and Formatted_Address = Mailing_Address_1 
+and Formatted_Address = Mailing_Address_2
+----retrive one records
+ select * from ['All Active Voters$']
+ where Residence_Address <> Formatted_Address
+and Formatted_Address = Mailing_Address_1
+   or Formatted_Address = Mailing_Address_2
+-------retrived 44,438...same as Formatted_Address= Mailing_Address_1
+
+----To find addresses where more than 20 people registered for VoterI
+-----case 1: when Residaence_Address = Formatted_Address
+
+SELECT t.*, subquery.record_count
+FROM ['All Active Voters$'] AS t
+INNER JOIN (
+  SELECT Residence_Address, Formatted_Address, COUNT(*) AS record_count
+  FROM ['All Active Voters$']
+  WHERE Residence_Address = Formatted_Address
+  GROUP BY Residence_Address, Formatted_Address
+  HAVING COUNT(*) > 20
+) AS subquery
+ON t.Residence_Address = subquery.Residence_Address 
+AND t.Formatted_Address = subquery.Formatted_Address;
+-------retrived 248 row...and All Mailing Addresses are NULL
+----case 1: when Residaence_Address <> Formatted_Address
+SELECT t.*, subquery.record_count
+FROM ['All Active Voters$'] AS t
+INNER JOIN (
+  SELECT Residence_Address, Formatted_Address, COUNT(*) AS record_count
+  FROM ['All Active Voters$']
+  WHERE Residence_Address <> Formatted_Address
+  GROUP BY Residence_Address, Formatted_Address
+  HAVING COUNT(*) > 20
+) AS subquery
+ON t.Residence_Address = subquery.Residence_Address 
+AND t.Formatted_Address = subquery.Formatted_Address
+------no records....which can be assumed that those families 
+------when they changed addresses they may be moved to a different State.
+SELECT t.*, subquery.record_count
+FROM ['All Active Voters$'] AS t
+INNER JOIN (
+  SELECT Residence_Address, Formatted_Address, COUNT(*) AS record_count
+  FROM ['All Active Voters$']
+  WHERE Residence_Address <> Formatted_Address
+  GROUP BY Residence_Address, Formatted_Address
+  HAVING COUNT(*) > 10
+) AS subquery
+ON t.Residence_Address = subquery.Residence_Address 
+AND t.Formatted_Address = subquery.Formatted_Address
+-----no records retrived like before
+-----Let us investogate when Residence_Address = Formatted_Address
+SELECT t.*, subquery.record_count
+FROM ['All Active Voters$'] AS t
+INNER JOIN (
+  SELECT Residence_Address, Formatted_Address, COUNT(*) AS record_count
+  FROM ['All Active Voters$']
+  WHERE Residence_Address = Formatted_Address
+  GROUP BY Residence_Address, Formatted_Address
+  HAVING COUNT(*) > 10
+) AS subquery
+ON t.Residence_Address = subquery.Residence_Address AND t.Formatted_Address = subquery.Formatted_Address;
+-------returns 786 rows...which indicates there are 786 occasions 
+-------where number of voters is more than 10 for a single residence...however there are repetition of rows 
+SELECT t.*, subquery.record_count
+FROM ['All Active Voters$'] AS t
+INNER JOIN (
+  SELECT Residence_Address, Formatted_Address, COUNT(*) AS record_count
+  FROM ['All Active Voters$']
+  WHERE Residence_Address = Formatted_Address
+  GROUP BY Residence_Address, Formatted_Address
+  HAVING COUNT(*) > 20
+) AS subquery
+ON t.Residence_Address = subquery.Residence_Address AND t.Formatted_Address = subquery.Formatted_Address;
+-------returns 248 rows...which indicates there are 248 occasions and repete of rows
+-------where number of voters is more than 20 for a single residence----Need more investigation
+SELECT t.*, subquery.record_count
+FROM ['All Active Voters$'] AS t
+INNER JOIN (
+  SELECT Residence_Address, Formatted_Address, COUNT(*) AS record_count
+  FROM ['All Active Voters$']
+  WHERE Residence_Address = Formatted_Address
+  GROUP BY Residence_Address, Formatted_Address
+  HAVING COUNT(*) > 30
+) AS subquery
+ON t.Residence_Address = subquery.Residence_Address AND t.Formatted_Address = subquery.Formatted_Address;
+-----------72 rows....repetion of rows ....-------need to standardized 
+WITH StandardizedData AS (
+  SELECT 
+    LOWER(RTRIM(LTRIM(t.Residence_Address))) AS Standardized_Residence_Address,
+    LOWER(RTRIM(LTRIM(t.Formatted_Address))) AS Standardized_Formatted_Address,
+	LEFT(t.Zip_Country, CHARINDEX('-', t.Zip_Country + '-') - 1) AS Standardized_Zip_Country
+  FROM ['All Active Voters$'] AS t
+)
+SELECT 
+  s.Standardized_Residence_Address,
+  s.Standardized_Formatted_Address,
+  s.Standardized_Zip_Country,
+  COUNT(*) AS record_count
+FROM StandardizedData AS s
+GROUP BY 
+  s.Standardized_Residence_Address,
+  s.Standardized_Formatted_Address,
+  s.Standardized_Zip_Country
+HAVING COUNT(*) > 30;
+------yeilds 2 rows
+----Further investigation reveales that 1) 500 W Platt St, Tampa, FL-33606 is the Church(United Methidist Church) 
+---and it is selfexplanatory why there are so many people in one address
+---2) 7211 S 78th St,Riverview,Fl-33578 is also home for Lighthouse Gospel Mission
+-----Let's check for count(*) 
+WITH StandardizedData AS (
+  SELECT 
+    LOWER(RTRIM(LTRIM(t.Residence_Address))) AS Standardized_Residence_Address,
+    LOWER(RTRIM(LTRIM(t.Formatted_Address))) AS Standardized_Formatted_Address,
+	LEFT(t.Zip_Country, CHARINDEX('-', t.Zip_Country + '-') - 1) AS Standardized_Zip_Country
+  FROM ['All Active Voters$'] AS t
+)
+SELECT 
+  s.Standardized_Residence_Address,
+  s.Standardized_Formatted_Address,
+  s.Standardized_Zip_Country,
+  COUNT(*) AS record_count
+FROM StandardizedData AS s
+GROUP BY 
+  s.Standardized_Residence_Address,
+  s.Standardized_Formatted_Address,
+  s.Standardized_Zip_Country
+HAVING COUNT(*) > 10
+-----47 rows.....now next job is to find the location and type of residence of each address in google maps 
+
+
+
